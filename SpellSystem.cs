@@ -166,13 +166,18 @@ public class SpellSystem : MonoBehaviour
 
     void Update()
     {
-        // 更新冷却计时器
-        var keys = new List<SpellType>(cooldownTimers.Keys);
-        foreach (var key in keys)
+        // 更新冷却计时器 - 只在正常游戏状态下更新冷却
+        // 使用deltaTime确保在慢动作期间冷却正常计算
+        if (GameStateManager.Instance == null || 
+            GameStateManager.Instance.CurrentState == GameState.Normal)
         {
-            if (cooldownTimers[key] > 0)
+            var keys = new List<SpellType>(cooldownTimers.Keys);
+            foreach (var key in keys)
             {
-                cooldownTimers[key] -= Time.unscaledDeltaTime;
+                if (cooldownTimers[key] > 0)
+                {
+                    cooldownTimers[key] -= Time.deltaTime;
+                }
             }
         }
     }

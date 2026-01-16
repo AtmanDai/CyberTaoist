@@ -163,10 +163,9 @@ public class SealSlotManager : MonoBehaviour
     /// </summary>
     private SpellType DetermineSpell()
     {
-        // 如果印记不满3个，返回None
+        // 印记不满3个时不触发术式，需要完整的3个印记组合
         if (currentSlotIndex < maxSlots)
         {
-            // 可以选择根据已有印记释放弱化版术式，这里先返回None
             return SpellType.None;
         }
 
