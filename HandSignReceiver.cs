@@ -6,25 +6,44 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Collections.Concurrent;
 
+/// <summary>
+/// MediaPipe data structure for JSON parsing
+/// </summary>
+[System.Serializable]
+public class MediaPipeData
+{
+    public float left_index_x;
+    public float left_index_y;
+    public int gesture_id;
+    public string gesture_name;
+    public double timestamp;
+}
+
 public class HandSignReceiver : MonoBehaviour
 {
     private Thread receiveThread;
     private UdpClient client;
     public int port = 5005;
 
-    // 线程安全队列
+    // Thread-safe queue
     private ConcurrentQueue<string> messageQueue = new ConcurrentQueue<string>();
 
     [Header("Debounce Settings")]
-    [Tooltip("连续多少帧相同输入才视为稳定")]
-    public int stabilityFrames = 5; 
+    [Tooltip("Number of consecutive frames with same input to consider stable")]
+    public int stabilityFrames = 5;
     
-    // 公开给外部的状态
+    // Public state - Hand gesture
     public string latestSignName = "";
     public int latestSignID = -1;
     public bool hasNewInput = false;
 
-    // 内部去抖动状态变量
+    // Public state - Left index finger position for player movement
+    [Header("Movement Data")]
+    public float leftIndexX = -1f;
+    public float leftIndexY = -1f;
+    public bool hasValidMovementData = false;
+
+    // Internal debounce state variables
     private int currentBufferCount = 0;
     private int lastCandidateID = -1;
     private string lastCandidateName = "";
@@ -63,7 +82,7 @@ public class HandSignReceiver : MonoBehaviour
             }
             catch (Exception)
             {
-                // 忽略超时或中断错误
+                // Ignore timeout or interrupt errors
                 Thread.Sleep(10);
             }
         }
@@ -71,83 +90,76 @@ public class HandSignReceiver : MonoBehaviour
 
     void Update()
     {
-        // 1. 获取最新的一条原始消息（每帧只处理最新的一条，丢弃积压的旧消息）
+        // 1. Get the latest raw message (process only the latest, discard old ones)
         string rawMessage = null;
         while (messageQueue.TryDequeue(out string result))
         {
             rawMessage = result;
         }
 
-        // 2. 如果这一帧没收到任何数据（或者摄像头丢帧了），直接视为“无输入”，中断连续性
+        // 2. If no data received this frame, treat as "no input", break continuity
         if (string.IsNullOrEmpty(rawMessage))
         {
-            // 可选：如果你希望短暂丢帧不打断结印，可以把这一行注释掉
-            ResetDebounce(); 
+            ResetDebounce();
+            hasValidMovementData = false;
             return;
         }
 
-        // 3. 解析输入信息
-        int incomingID = -1;
-        string incomingName = "";
-        if (ParseMessage(rawMessage, out incomingID, out incomingName))
+        // 3. Parse input - Try new MediaPipe JSON format first
+        MediaPipeData mpData = ParseMediaPipeMessage(rawMessage);
+        if (mpData != null)
         {
-            // 4. 执行去抖动逻辑
-            ProcessDebounce(incomingID, incomingName);
-        }
-    }
+            // Update movement data from left index finger
+            leftIndexX = mpData.left_index_x;
+            leftIndexY = mpData.left_index_y;
+            hasValidMovementData = (leftIndexX >= 0 && leftIndexY >= 0);
 
-    // 去抖动核心算法
-    void ProcessDebounce(int id, string name)
-    {
-        // 如果当前收到的 ID 和上一帧的候选者一样
-        if (id == lastCandidateID)
-        {
-            currentBufferCount++;
-        }
-        else
-        {
-            // 发生了变化（或者是新的开始），重置计数器，把当前这个设为新候选者
-            lastCandidateID = id;
-            lastCandidateName = name;
-            currentBufferCount = 1;
-        }
-
-        // 判定条件：连续帧数达标
-        if (currentBufferCount >= stabilityFrames)
-        {
-            // 这是一个稳定的手势！
-            
-            // 为了防止同一个手势一直触发（比如一直举着手），我们需要加一个锁
-            // 只有当这次确认的 ID 和上次最终输出的 ID 不一样时，才通知外部
-            // 如果是单次技能，加上 if (id != latestSignID)
-            
-            if (lastCandidateID != latestSignID)
+            // Process gesture for spells (right hand)
+            if (mpData.gesture_id > 0)
             {
-                // 新的稳定输入，通知外部
-                latestSignID = lastCandidateID;
-                latestSignName = lastCandidateName;
-                hasNewInput = true;
+                ProcessDebounce(mpData.gesture_id, mpData.gesture_name);
             }
-
-            
-            // 防止溢出，但也保持计数器在阈值以上，以保持“稳定状态”
-            currentBufferCount = stabilityFrames; 
+            else
+            {
+                ResetDebounce();
+            }
         }
         else
         {
-            // 还没稳定，不要通知外部有新输入
-            // hasNewInput = false; // 注意：通常不需要每帧设为false，因为消费方会设为false
+            // Fallback to old format for backward compatibility
+            int incomingID = -1;
+            string incomingName = "";
+            if (ParseLegacyMessage(rawMessage, out incomingID, out incomingName))
+            {
+                ProcessDebounce(incomingID, incomingName);
+            }
         }
     }
 
-    void ResetDebounce()
+    /// <summary>
+    /// Parse MediaPipe JSON message format
+    /// </summary>
+    private MediaPipeData ParseMediaPipeMessage(string msg)
     {
-        currentBufferCount = 0;
-        lastCandidateID = -1;
-        // 注意：不重置 latestSignID，保持“最后一次有效输入”的记忆，除非你想让它归零
+        try
+        {
+            // Check if it's JSON format
+            if (msg.StartsWith("{"))
+            {
+                return JsonUtility.FromJson<MediaPipeData>(msg);
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("Failed to parse MediaPipe message: " + e.Message);
+        }
+        return null;
     }
 
-    bool ParseMessage(string msg, out int id, out string name)
+    /// <summary>
+    /// Parse legacy message format (ID:name)
+    /// </summary>
+    private bool ParseLegacyMessage(string msg, out int id, out string name)
     {
         id = -1;
         name = "";
@@ -163,6 +175,48 @@ public class HandSignReceiver : MonoBehaviour
         }
         catch {}
         return false;
+    }
+
+    // Debounce core algorithm
+    void ProcessDebounce(int id, string name)
+    {
+        // If current ID matches previous candidate
+        if (id == lastCandidateID)
+        {
+            currentBufferCount++;
+        }
+        else
+        {
+            // Change occurred, reset counter, set current as new candidate
+            lastCandidateID = id;
+            lastCandidateName = name;
+            currentBufferCount = 1;
+        }
+
+        // Check if stable (consecutive frames threshold reached)
+        if (currentBufferCount >= stabilityFrames)
+        {
+            // Stable gesture detected!
+            
+            // Only notify if different from last confirmed gesture
+            if (lastCandidateID != latestSignID)
+            {
+                // New stable input, notify external systems
+                latestSignID = lastCandidateID;
+                latestSignName = lastCandidateName;
+                hasNewInput = true;
+            }
+
+            // Prevent overflow, maintain counter at threshold
+            currentBufferCount = stabilityFrames;
+        }
+    }
+
+    void ResetDebounce()
+    {
+        currentBufferCount = 0;
+        lastCandidateID = -1;
+        // Don't reset latestSignID, keep memory of last valid input
     }
 
     void OnDestroy()

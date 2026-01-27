@@ -1,244 +1,164 @@
-# 赛博道士：子午档案 (Cyber Taoist: The Zi-Wu Files)
+# Cyber Taoist: The Zi-Wu Files (赛博道士：子午档案)
 
-一款融合计算机视觉手势识别的2D横版动作游戏Demo，玩家扮演赛博道士，通过真实手势结印释放术式。
+A 2D action game demo featuring real-time hand gesture recognition powered by MediaPipe.
 
-## 🎮 项目概述
+## 🎮 Project Overview
 
-**核心卖点：** 高频次手势识别驱动的策略战斗
-**目标平台：** Windows PC (键鼠+摄像头)
-**技术特点：**
-- ✅ 实时手势识别延迟<200ms
-- ✅ 印记槽组合系统：3个印记→9种术式
-- ✅ 慢动作结印模式：保证识别准确率的同时维持战斗流畅度
-- ✅ 跨语言通信：Python(CV) ←UDP→ Unity(游戏逻辑)
+**Core Feature:** Hand gesture-controlled spell casting
+**Platform:** Windows PC (Keyboard/Mouse + Webcam)
+**Technology:**
+- ✅ MediaPipe hand tracking with <200ms latency
+- ✅ Three gesture system: Rock, Thumbs Up, Fist
+- ✅ Left hand index finger for player movement
+- ✅ Right hand gestures for spell casting
+- ✅ Python(CV) ←UDP→ Unity communication
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```
 CyberTaoist/
 ├── C# Scripts (Unity)
 │   ├── Core Systems/
-│   │   ├── GameManager.cs          # 游戏全局管理
-│   │   ├── GameStateManager.cs     # 游戏状态机
-│   │   ├── SealSlotManager.cs      # 印记槽系统
-│   │   └── SpellSystem.cs          # 术式组合系统
+│   │   ├── GameManager.cs          # Global game management
+│   │   ├── GameStateManager.cs     # Game state machine
+│   │   ├── SealSlotManager.cs      # Gesture processing system
+│   │   └── SpellSystem.cs          # Spell system (3 spells)
 │   │
 │   ├── Player/
-│   │   ├── PlayerController.cs     # 玩家移动控制
-│   │   ├── PlayerCombat.cs         # 玩家战斗（旧版）
-│   │   └── PlayerCombatController.cs # 玩家战斗系统
+│   │   ├── PlayerController.cs     # Player movement (hand tracking)
+│   │   ├── PlayerCombatController.cs # Combat system
+│   │   └── HandSignReceiver.cs     # UDP gesture receiver
 │   │
 │   ├── Enemy/
-│   │   ├── EnemyBase.cs            # 敌人基类
-│   │   ├── GlitchEnemy.cs          # 故障者（小型近战）
-│   │   ├── CyberAxeman.cs          # 赛博斧手（中型近战）
-│   │   ├── ReconstructorEnemy.cs   # 重构体（大型坦克）
-│   │   ├── BossController.cs       # Boss控制器
-│   │   └── EnemySpawner.cs         # 敌人生成系统
+│   │   ├── EnemyBase.cs            # Enemy base class
+│   │   ├── GlitchEnemy.cs          # Glitch enemy
+│   │   ├── CyberAxeman.cs          # Cyber Axeman
+│   │   ├── ReconstructorEnemy.cs   # Reconstructor
+│   │   ├── BossController.cs       # Boss controller
+│   │   └── EnemySpawner.cs         # Enemy spawning
 │   │
-│   ├── UI/
-│   │   ├── GameUI.cs               # 主游戏UI
-│   │   ├── SealSlotUI.cs           # 印记槽UI
-│   │   └── DomainUI.cs             # 领域展开UI
-│   │
-│   ├── Effects/
-│   │   ├── SpellEffects.cs         # 术式特效
-│   │   ├── CameraController.cs     # 相机控制（震动/缩放）
-│   │   └── Projectile.cs           # 投射物
-│   │
-│   ├── Audio/
-│   │   └── AudioManager.cs         # 音频管理
-│   │
-│   └── Communication/
-│       ├── HandSignReceiver.cs     # UDP手势接收器
-│       └── SkillManager.cs         # 技能触发管理（旧版）
+│   └── Effects/
+│       ├── SpellEffects.cs         # Spell effects
+│       ├── Projectile.cs           # Projectiles
+│       └── SkillManager.cs         # Skill visual feedback
 │
 ├── Python Scripts (CV)
-│   ├── simple_demo.py              # 手势识别主程序
-│   └── upd_streamer.py             # UDP发送工具类
+│   ├── mediapipe_demo.py           # MediaPipe hand detection (NEW)
+│   ├── simple_demo.py              # Legacy YOLO demo
+│   └── upd_streamer.py             # UDP utility
 │
 └── Data/
-    └── labels.csv                  # 手势标签映射
+    └── labels.csv                  # Gesture labels
 ```
 
-## 🎯 核心玩法
+## 🎯 Control System
 
-### 战斗循环
-1. **常规战斗** - WASD移动 + 鼠标左键攻击敌人
-2. **能量积累** - 击中敌人获得咒力（能量条上涨）
-3. **领域展开** - 咒力满时按F键进入慢动作结印模式
-4. **结印操作** - 对摄像头做手势，填充3个印记槽
-5. **术式释放** - 根据印记组合释放对应术式
+### Player Movement
+- **Primary:** Left hand index finger position controls horizontal movement
+- **Fallback:** Keyboard arrow keys or WASD
+- Movement is limited to 2D horizontal plane (no jumping)
 
-### 印记类型
-| 印记 | 汉字 | 属性 | 颜色 | 手势ID |
-|-----|------|------|------|--------|
-| 🐉 龙印 | 辰 | 攻击 | 红色 | 5 |
-| 🐂 牛印 | 丑 | 防御 | 金色 | 2 |
-| 🐰 兔印 | 卯 | 机动 | 蓝色 | 4 |
-| 🙏 祈印 | 祈 | 结束 | - | 13 |
+### Spell Casting (Right Hand)
+| Gesture | Spell | Effect | Cooldown |
+|---------|-------|--------|----------|
+| ✊ Rock | Defense | Brief invincibility | 10s |
+| 👍 Thumbs Up | Fireball | Ranged projectile attack | 10s |
+| 👊 Fist | Power Strike | Powerful melee attack | 10s |
 
-### 术式组合
-| 组合 | 术式名 | 效果 | CD |
-|------|--------|------|-----|
-| 龙龙龙 | 离火聚龙 | 火龙特效，200伤害 | 5秒 |
-| 牛牛牛 | 金刚不坏身 | 5秒无敌+反伤 | 5秒 |
-| 兔兔兔 | 神行千里 | 移速x3，持续10秒 | 10秒 |
-| 龙牛兔 | 三元归一 | 回血50% | 5秒 |
+## 🛠️ Setup Guide
 
-## 🛠️ 开发指南
+### Python Environment
 
-### 环境要求
-- Unity 2021 LTS 或更高版本
-- Python 3.9+
-- NARUTO-HandSign 模型（YOLOX）
-- 摄像头
+1. **Install dependencies:**
+```bash
+pip install mediapipe opencv-python numpy
+```
 
-### Unity项目设置
+2. **Run hand detection:**
+```bash
+python mediapipe_demo.py --device 0
+```
 
-1. **创建新Unity 2D项目**
-2. **导入所有C#脚本到Assets目录**
-3. **设置场景结构：**
+### Unity Project
+
+1. **Create new Unity 2D project**
+2. **Import all C# scripts to Assets**
+3. **Scene setup:**
 
 ```
 Scene Hierarchy:
 ├── Main Camera
-│   └── CameraController.cs
 ├── Managers (Empty GameObject)
-│   ├── GameManager.cs
-│   ├── GameStateManager.cs
-│   ├── SealSlotManager.cs
-│   ├── SpellSystem.cs
-│   ├── EnemySpawner.cs
-│   ├── AudioManager.cs
-│   └── SpellEffects.cs
+│   ├── GameManager
+│   ├── GameStateManager
+│   ├── SealSlotManager
+│   └── SpellSystem
 ├── Player
-│   ├── PlayerController.cs
-│   ├── PlayerCombatController.cs
-│   └── HandSignReceiver.cs
+│   ├── PlayerController
+│   ├── PlayerCombatController
+│   └── HandSignReceiver
 ├── Canvas (UI)
 │   ├── HealthBar
-│   ├── EnergyBar
-│   ├── SealSlots (3个槽位)
-│   ├── DomainOverlay
-│   ├── BossHealthBar
-│   └── Panels (Pause/Victory/Defeat)
+│   └── CooldownIndicators
 └── Ground
 ```
 
-4. **设置Layer和Tag：**
-   - Tag: Player, Enemy, Wall, Ground
-   - Layer: Ground, Enemy
+4. **Configure references between components**
 
-5. **配置组件引用：**
-   - 将各Manager脚本的引用相互关联
-   - 配置UI元素到对应的UI脚本
+### Testing
 
-### Python端设置
+1. Start Unity game
+2. Start Python MediaPipe demo
+3. Use left index finger to move player
+4. Use right hand gestures to cast spells
 
-1. **安装依赖：**
-```bash
-pip install opencv-python numpy onnxruntime
+## ⚙️ Game Parameters
+
+### Player
+- Health: 100
+- Movement Speed: 8
+- Attack Damage: 25
+- Spell Cooldown: 10 seconds
+
+### Spells
+| Spell | Damage | Duration |
+|-------|--------|----------|
+| Defense | - | 3 seconds |
+| Fireball | 50 | Instant |
+| Power Strike | 75 | Instant |
+
+## 📝 Communication Protocol
+
+### UDP Format (JSON)
+```json
+{
+    "left_index_x": 0.5,    // 0-1, left index finger X position
+    "left_index_y": 0.5,    // 0-1, left index finger Y position
+    "gesture_id": 1,        // 0=None, 1=Rock, 2=ThumbsUp, 3=Fist
+    "gesture_name": "Rock",
+    "timestamp": 1234567890.123
+}
 ```
 
-2. **下载YOLOX模型：**
-   - 将训练好的模型放到 `model/yolox/yolox_nano.onnx`
+### Gesture IDs
+- 0: No gesture
+- 1: Rock (Defense)
+- 2: Thumbs Up (Fireball)
+- 3: Fist (Normal Attack)
 
-3. **运行手势识别：**
-```bash
-python simple_demo.py --device 0
-```
+## 🎥 Demo Features
 
-### 通信测试
+- Real-time hand landmark visualization
+- Left index finger tracking for movement
+- Right hand gesture recognition
+- Visual feedback for detected gestures
+- FPS and latency display
 
-1. 先启动Unity游戏
-2. 再启动Python手势识别脚本
-3. 确保UDP端口5005未被占用
-4. 在Unity Console查看接收到的手势信息
+## 📄 License
 
-## 🎨 美术资源
-
-### 占位符规格
-- 玩家：白色圆角矩形
-- 故障者：红色方块 (小)
-- 赛博斧手：蓝色方块 (中)
-- 重构体：灰色方块 (大)
-- Boss：紫色方块 (最大)
-
-### 特效
-- 离火聚龙：Unity ParticleSystem 火焰效果
-- 金刚不坏身：LineRenderer 金色圆环
-- 神行千里：TrailRenderer 蓝色残影
-
-## 🔊 音效需求
-
-1. 结印成功：咔嚓声
-2. 术式释放：轰鸣声
-3. 敌人受击：打击声
-4. 玩家受伤：受伤声
-5. 背景音乐：赛博朋克风格Loop
-
-## ⚙️ 游戏参数
-
-### 玩家
-- 生命值：100
-- 移动速度：8
-- 跳跃力度：12
-- 攻击伤害：25
-- 咒力获取：20/次
-
-### 敌人
-| 类型 | HP | 伤害 | 移动速度 | 生成间隔 |
-|-----|-----|------|---------|---------|
-| 故障者 | 100 | 20 | 4 | 3秒 |
-| 赛博斧手 | 250 | 30 | 3 | 5秒 |
-| 重构体 | 350 | 50 | 1.5 | 20秒 |
-| Boss | 1000 | 30x3 | 2 | 60秒后 |
-
-### 领域展开
-- 持续时间：10秒
-- 时间缩放：0.5x
-- 结印触发：咒力满 + F键
-
-## 📝 开发清单
-
-### Week 1: 核心技术验证
-- [x] Python手势识别
-- [x] UDP通信
-- [x] Unity角色移动/攻击
-- [x] 印记槽系统
-- [x] 术式组合系统
-
-### Week 2: 游戏完整性
-- [x] 3种敌人AI
-- [x] Boss战系统
-- [x] 敌人生成系统
-- [x] UI系统
-- [x] 特效系统
-- [x] 音效系统
-- [ ] 美术贴图
-- [ ] 测试优化
-
-## 🎥 作品集展示
-
-成功标准：
-- [ ] 手势识别延迟<300ms
-- [ ] 一场战斗至少10次结印
-- [ ] Python-Unity通信稳定
-- [ ] 战斗循环完整
-- [ ] 至少3种术式可用
-- [ ] Boss战需要策略
-
-## 📄 许可证
-
-本项目仅用于学习和作品集展示目的。
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
+This project is for learning and portfolio purposes.
 
 ---
 
-**开发者：** CyberTaoist Team
-**版本：** v2.0
-**最后更新：** 2024
+**Version:** v3.0 (MediaPipe Update)
+**Last Updated:** 2024

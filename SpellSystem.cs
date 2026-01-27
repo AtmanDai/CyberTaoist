@@ -3,23 +3,23 @@ using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
-/// 术式数据结构
+/// Simplified spell data structure
 /// </summary>
 [System.Serializable]
 public class SpellData
 {
     public SpellType spellType;
-    public string spellName;        // 术式名称
-    public string description;      // 描述
-    public float damage;            // 伤害
-    public float duration;          // 持续时间
-    public float cooldown;          // 冷却时间
-    public GameObject effectPrefab; // 特效预制体
-    public AudioClip soundEffect;   // 音效
+    public string spellName;
+    public string description;
+    public float damage;
+    public float duration;
+    public float cooldown;
+    public GameObject effectPrefab;
+    public AudioClip soundEffect;
 }
 
 /// <summary>
-/// 术式系统 - 管理所有术式的释放和效果
+/// Simplified Spell System - Three gestures with immediate release and 10s cooldown
 /// </summary>
 public class SpellSystem : MonoBehaviour
 {
@@ -34,17 +34,23 @@ public class SpellSystem : MonoBehaviour
     public PlayerCombatController playerCombat;
 
     [Header("Spell Cooldowns")]
+    [Tooltip("Universal cooldown for all skills (10 seconds)")]
+    public float universalCooldown = 10f;
     private Dictionary<SpellType, float> cooldownTimers = new Dictionary<SpellType, float>();
 
-    [Header("Visual Settings")]
-    public float spellCastDuration = 1.5f;  // 术式演出时间
-    public float chargeUpTime = 0.3f;       // 蓄力时间
+    [Header("Fireball Settings")]
+    public GameObject fireballPrefab;
+    public float fireballSpeed = 10f;
+    public float fireballDamage = 50f;
+
+    [Header("Defense Settings")]
+    public float defenseDuration = 3f;
 
     [Header("Active Effects")]
     public bool isInvincible = false;
     public float speedMultiplier = 1f;
 
-    // 事件
+    // Events
     public event System.Action<SpellType> OnSpellCast;
     public event System.Action OnSpellComplete;
 
@@ -65,7 +71,7 @@ public class SpellSystem : MonoBehaviour
         InitializeSpellData();
         BuildSpellDictionary();
 
-        // 订阅印记槽事件
+        // Subscribe to gesture events
         if (SealSlotManager.Instance != null)
         {
             SealSlotManager.Instance.OnSpellDetermined += HandleSpellDetermined;
@@ -81,73 +87,43 @@ public class SpellSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 初始化术式数据（如果没有在Inspector中设置）
+    /// Initialize spell data for three simplified gestures
     /// </summary>
     private void InitializeSpellData()
     {
         if (spellDataList.Count == 0)
         {
-            // 三同印术式
+            // Rock - Defense
             spellDataList.Add(new SpellData
             {
-                spellType = SpellType.DragonDragonDragon,
-                spellName = "离火聚龙",
-                description = "召唤火龙造成大范围伤害",
-                damage = 200f,
-                duration = 1.5f,
-                cooldown = 5f
+                spellType = SpellType.Rock,
+                spellName = "Rock Defense",
+                description = "Create a protective barrier, become invincible briefly",
+                damage = 0f,
+                duration = defenseDuration,
+                cooldown = universalCooldown
             });
 
+            // Thumbs Up - Fireballs
             spellDataList.Add(new SpellData
             {
-                spellType = SpellType.OxOxOx,
-                spellName = "金刚不坏身",
-                description = "获得5秒无敌并反弹伤害",
-                damage = 0f,
-                duration = 5f,
-                cooldown = 5f
-            });
-
-            spellDataList.Add(new SpellData
-            {
-                spellType = SpellType.RabbitRabbitRabbit,
-                spellName = "神行千里",
-                description = "移动速度提升3倍",
-                damage = 0f,
-                duration = 10f,
-                cooldown = 10f
-            });
-
-            // 三异印术式
-            spellDataList.Add(new SpellData
-            {
-                spellType = SpellType.DragonOxRabbit,
-                spellName = "三元归一",
-                description = "恢复50%生命值",
-                damage = 0f,
+                spellType = SpellType.ThumbsUp,
+                spellName = "Fireball",
+                description = "Shoot a fireball at enemies",
+                damage = fireballDamage,
                 duration = 0f,
-                cooldown = 5f
+                cooldown = universalCooldown
             });
 
-            // 双同印术式（待扩展）
+            // Fist - Normal Attack
             spellDataList.Add(new SpellData
             {
-                spellType = SpellType.DragonDragonOx,
-                spellName = "炎铠",
-                description = "火焰护盾，造成接触伤害",
-                damage = 50f,
-                duration = 3f,
-                cooldown = 5f
-            });
-
-            spellDataList.Add(new SpellData
-            {
-                spellType = SpellType.DragonDragonRabbit,
-                spellName = "火遁·疾",
-                description = "快速冲刺并留下火焰轨迹",
-                damage = 80f,
-                duration = 1f,
-                cooldown = 5f
+                spellType = SpellType.Fist,
+                spellName = "Power Strike",
+                description = "Perform a powerful melee attack",
+                damage = 75f,
+                duration = 0f,
+                cooldown = universalCooldown
             });
         }
     }
@@ -166,30 +142,24 @@ public class SpellSystem : MonoBehaviour
 
     void Update()
     {
-        // 更新冷却计时器 - 只在正常游戏状态下更新冷却
-        // 使用deltaTime确保在慢动作期间冷却正常计算
-        if (GameStateManager.Instance == null || 
-            GameStateManager.Instance.CurrentState == GameState.Normal)
+        // Update cooldown timers
+        var keys = new List<SpellType>(cooldownTimers.Keys);
+        foreach (var key in keys)
         {
-            var keys = new List<SpellType>(cooldownTimers.Keys);
-            foreach (var key in keys)
+            if (cooldownTimers[key] > 0)
             {
-                if (cooldownTimers[key] > 0)
-                {
-                    cooldownTimers[key] -= Time.deltaTime;
-                }
+                cooldownTimers[key] -= Time.deltaTime;
             }
         }
     }
 
     /// <summary>
-    /// 处理术式确定事件
+    /// Handle spell determined event - immediate spell release
     /// </summary>
     private void HandleSpellDetermined(SpellType spell)
     {
         if (spell == SpellType.None)
         {
-            Debug.Log("[SpellSystem] 术式组合无效");
             return;
         }
 
@@ -197,195 +167,147 @@ public class SpellSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 释放术式
+    /// Cast spell immediately
     /// </summary>
     public void CastSpell(SpellType spellType)
     {
         if (!CanCastSpell(spellType))
         {
-            Debug.Log($"[SpellSystem] {spellType} 冷却中或无法释放");
+            float remaining = GetCooldownRemaining(spellType);
+            Debug.Log($"[SpellSystem] {spellType} on cooldown: {remaining:F1}s remaining");
             return;
         }
 
         SpellData data = GetSpellData(spellType);
         if (data == null)
         {
-            Debug.LogWarning($"[SpellSystem] 未找到术式数据: {spellType}");
+            Debug.LogWarning($"[SpellSystem] Spell data not found: {spellType}");
             return;
         }
 
-        StartCoroutine(ExecuteSpellSequence(data));
-    }
-
-    private IEnumerator ExecuteSpellSequence(SpellData data)
-    {
-        // 1. 进入术式演出状态
-        if (GameStateManager.Instance != null)
-        {
-            GameStateManager.Instance.SetState(GameState.SpellCast);
-        }
-
-        OnSpellCast?.Invoke(data.spellType);
-        Debug.Log($"[SpellSystem] 开始释放: {data.spellName}");
-
-        // 2. 蓄力阶段（使用unscaledTime因为游戏暂停了）
-        float chargeTimer = 0f;
-        while (chargeTimer < chargeUpTime)
-        {
-            chargeTimer += Time.unscaledDeltaTime;
-            yield return null;
-        }
-
-        // 3. 释放术式效果
+        // Execute spell immediately
         ExecuteSpellEffect(data);
-
-        // 4. 播放特效
-        if (data.effectPrefab != null && playerTransform != null)
-        {
-            Instantiate(data.effectPrefab, playerTransform.position, Quaternion.identity);
-        }
-
-        // 5. 术式演出时间
-        float castTimer = 0f;
-        while (castTimer < spellCastDuration)
-        {
-            castTimer += Time.unscaledDeltaTime;
-            yield return null;
-        }
-
-        // 6. 设置冷却
-        SetSpellCooldown(data.spellType, data.cooldown);
-
-        // 7. 清空印记槽
-        if (SealSlotManager.Instance != null)
-        {
-            SealSlotManager.Instance.ClearSlots();
-        }
-
-        // 8. 返回正常状态
-        if (GameStateManager.Instance != null)
-        {
-            GameStateManager.Instance.SetState(GameState.Normal);
-        }
-
-        OnSpellComplete?.Invoke();
-        Debug.Log($"[SpellSystem] {data.spellName} 释放完成");
+        
+        // Set cooldown (10 seconds for all skills)
+        SetSpellCooldown(spellType, universalCooldown);
+        
+        OnSpellCast?.Invoke(spellType);
+        Debug.Log($"[SpellSystem] Cast: {data.spellName}");
     }
 
     /// <summary>
-    /// 执行具体的术式效果
+    /// Execute spell effect based on type
     /// </summary>
     private void ExecuteSpellEffect(SpellData data)
     {
         switch (data.spellType)
         {
-            case SpellType.DragonDragonDragon:
-                ExecuteDragonSpell(data);
+            case SpellType.Rock:
+                ExecuteRockDefense(data);
                 break;
-            case SpellType.OxOxOx:
-                ExecuteOxSpell(data);
+            case SpellType.ThumbsUp:
+                ExecuteFireball(data);
                 break;
-            case SpellType.RabbitRabbitRabbit:
-                ExecuteRabbitSpell(data);
-                break;
-            case SpellType.DragonOxRabbit:
-                ExecuteHealSpell(data);
-                break;
-            default:
-                ExecuteGenericSpell(data);
+            case SpellType.Fist:
+                ExecutePowerStrike(data);
                 break;
         }
+
+        // Play effect prefab if available
+        if (data.effectPrefab != null && playerTransform != null)
+        {
+            Instantiate(data.effectPrefab, playerTransform.position, Quaternion.identity);
+        }
+
+        OnSpellComplete?.Invoke();
     }
 
     /// <summary>
-    /// 离火聚龙 - 火龙特效, 200伤害
+    /// Rock - Defense: Brief invincibility
     /// </summary>
-    private void ExecuteDragonSpell(SpellData data)
+    private void ExecuteRockDefense(SpellData data)
     {
-        Debug.Log($">>> {data.spellName} 发动! <<<");
-        
-        // 对场景中所有敌人造成伤害
-        EnemyBase[] enemies = FindObjectsByType<EnemyBase>(FindObjectsSortMode.None);
-        foreach (var enemy in enemies)
-        {
-            enemy.TakeDamage(data.damage);
-        }
-
-        // 对Boss造成伤害
-        BossController boss = FindFirstObjectByType<BossController>();
-        if (boss != null)
-        {
-            boss.TakeDamage(data.damage);
-        }
-    }
-
-    /// <summary>
-    /// 金刚不坏身 - 5秒无敌+反伤
-    /// </summary>
-    private void ExecuteOxSpell(SpellData data)
-    {
-        Debug.Log($">>> {data.spellName} 发动! <<<");
+        Debug.Log(">>> Rock Defense Activated! <<<");
         StartCoroutine(InvincibilityCoroutine(data.duration));
     }
 
     private IEnumerator InvincibilityCoroutine(float duration)
     {
         isInvincible = true;
+        Debug.Log("[SpellSystem] Defense active!");
         yield return new WaitForSeconds(duration);
         isInvincible = false;
-        Debug.Log("[SpellSystem] 无敌效果结束");
+        Debug.Log("[SpellSystem] Defense ended");
     }
 
     /// <summary>
-    /// 神行千里 - 移速x3
+    /// Thumbs Up - Fireball: Ranged projectile attack
     /// </summary>
-    private void ExecuteRabbitSpell(SpellData data)
+    private void ExecuteFireball(SpellData data)
     {
-        Debug.Log($">>> {data.spellName} 发动! <<<");
-        StartCoroutine(SpeedBoostCoroutine(3f, data.duration));
-    }
-
-    private IEnumerator SpeedBoostCoroutine(float multiplier, float duration)
-    {
-        speedMultiplier = multiplier;
-        yield return new WaitForSeconds(duration);
-        speedMultiplier = 1f;
-        Debug.Log("[SpellSystem] 加速效果结束");
-    }
-
-    /// <summary>
-    /// 三元归一 - 回血50%
-    /// </summary>
-    private void ExecuteHealSpell(SpellData data)
-    {
-        Debug.Log($">>> {data.spellName} 发动! <<<");
+        Debug.Log(">>> Fireball Launched! <<<");
         
-        if (playerCombat != null)
-        {
-            playerCombat.Heal(playerCombat.maxHealth * 0.5f);
-        }
-    }
+        if (playerTransform == null) return;
 
-    /// <summary>
-    /// 通用术式效果
-    /// </summary>
-    private void ExecuteGenericSpell(SpellData data)
-    {
-        Debug.Log($">>> {data.spellName} 发动! <<<");
+        // Determine direction based on player facing
+        float direction = playerTransform.localScale.x > 0 ? 1f : -1f;
+        Vector2 spawnPos = (Vector2)playerTransform.position + new Vector2(direction * 1f, 0.5f);
         
-        if (data.damage > 0)
+        if (fireballPrefab != null)
         {
-            // 对周围敌人造成伤害
-            EnemyBase[] enemies = FindObjectsByType<EnemyBase>(FindObjectsSortMode.None);
-            foreach (var enemy in enemies)
+            GameObject fireball = Instantiate(fireballPrefab, spawnPos, Quaternion.identity);
+            Projectile proj = fireball.GetComponent<Projectile>();
+            if (proj != null)
             {
-                enemy.TakeDamage(data.damage);
+                proj.damage = data.damage;
+                proj.damagePlayer = false;
+                proj.damageEnemies = true;
+                proj.SetDirection(new Vector2(direction, 0));
             }
         }
+        else
+        {
+            // Fallback: damage nearby enemies if no prefab
+            DamageNearbyEnemies(data.damage, 5f);
+        }
     }
 
     /// <summary>
-    /// 检查术式是否可以释放
+    /// Fist - Power Strike: Powerful melee attack
+    /// </summary>
+    private void ExecutePowerStrike(SpellData data)
+    {
+        Debug.Log(">>> Power Strike! <<<");
+        DamageNearbyEnemies(data.damage, 3f);
+    }
+
+    /// <summary>
+    /// Damage all enemies within range
+    /// </summary>
+    private void DamageNearbyEnemies(float damage, float range)
+    {
+        if (playerTransform == null) return;
+
+        // Find and damage all enemies in range
+        EnemyBase[] enemies = FindObjectsByType<EnemyBase>(FindObjectsSortMode.None);
+        foreach (var enemy in enemies)
+        {
+            if (Vector2.Distance(playerTransform.position, enemy.transform.position) <= range)
+            {
+                enemy.TakeDamage(damage);
+            }
+        }
+
+        // Also check for boss
+        BossController boss = FindFirstObjectByType<BossController>();
+        if (boss != null && Vector2.Distance(playerTransform.position, boss.transform.position) <= range)
+        {
+            boss.TakeDamage(damage);
+        }
+    }
+
+    /// <summary>
+    /// Check if spell can be cast (not on cooldown)
     /// </summary>
     public bool CanCastSpell(SpellType spellType)
     {
@@ -397,7 +319,7 @@ public class SpellSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 设置术式冷却
+    /// Set spell cooldown
     /// </summary>
     private void SetSpellCooldown(SpellType spellType, float cooldown)
     {
@@ -412,7 +334,7 @@ public class SpellSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 获取术式数据
+    /// Get spell data
     /// </summary>
     public SpellData GetSpellData(SpellType spellType)
     {
@@ -424,7 +346,7 @@ public class SpellSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 获取术式剩余冷却时间
+    /// Get remaining cooldown time for a spell
     /// </summary>
     public float GetCooldownRemaining(SpellType spellType)
     {
