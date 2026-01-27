@@ -115,7 +115,7 @@ public class SpellSystem : MonoBehaviour
                 cooldown = universalCooldown
             });
 
-            // Fist - Normal Attack
+            // Fist - Power Strike
             spellDataList.Add(new SpellData
             {
                 spellType = SpellType.Fist,

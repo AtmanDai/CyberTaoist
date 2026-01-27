@@ -110,9 +110,12 @@ public class HandSignReceiver : MonoBehaviour
         if (mpData != null)
         {
             // Update movement data from left index finger
+            // Validate bounds: MediaPipe returns normalized coordinates in [0, 1]
+            // -1 indicates no hand detected
             leftIndexX = mpData.left_index_x;
             leftIndexY = mpData.left_index_y;
-            hasValidMovementData = (leftIndexX >= 0 && leftIndexY >= 0);
+            hasValidMovementData = (leftIndexX >= 0 && leftIndexX <= 1.0f && 
+                                   leftIndexY >= 0 && leftIndexY <= 1.0f);
 
             // Process gesture for spells (right hand)
             if (mpData.gesture_id > 0)
@@ -127,6 +130,7 @@ public class HandSignReceiver : MonoBehaviour
         else
         {
             // Fallback to old format for backward compatibility
+            hasValidMovementData = false;
             int incomingID = -1;
             string incomingName = "";
             if (ParseLegacyMessage(rawMessage, out incomingID, out incomingName))

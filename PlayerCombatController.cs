@@ -188,9 +188,22 @@ public class PlayerCombatController : MonoBehaviour
         }
     }
 
-    // Legacy compatibility methods
-    public void ActivateDomain() { }
-    public void DeactivateDomain() { }
+    // Legacy compatibility methods (deprecated - domain expansion removed)
+    [System.Obsolete("ActivateDomain is deprecated. Domain expansion has been removed from the simplified spell system.")]
+    public void ActivateDomain() 
+    { 
+        Debug.LogWarning("[PlayerCombatController] ActivateDomain is deprecated. Domain expansion is no longer used.");
+    }
+    
+    [System.Obsolete("DeactivateDomain is deprecated. Domain expansion has been removed from the simplified spell system.")]
+    public void DeactivateDomain() 
+    { 
+        Debug.LogWarning("[PlayerCombatController] DeactivateDomain is deprecated. Domain expansion is no longer used.");
+    }
+    
+    [System.Obsolete("GainEnergy is deprecated. Energy system has been removed from the simplified spell system.")]
     public void GainEnergy(float amount) { }
+    
+    [System.Obsolete("ConsumeEnergy is deprecated. Energy system has been removed from the simplified spell system.")]
     public void ConsumeEnergy(float amount) { }
 }

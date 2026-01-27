@@ -144,7 +144,7 @@ Scene Hierarchy:
 - 0: No gesture
 - 1: Rock (Defense)
 - 2: Thumbs Up (Fireball)
-- 3: Fist (Normal Attack)
+- 3: Fist (Power Strike)
 
 ## 🎥 Demo Features
 

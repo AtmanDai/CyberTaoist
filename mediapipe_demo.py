@@ -4,10 +4,10 @@
 MediaPipe Hand Detection Demo for CyberTaoist
 Replaces YOLO model with MediaPipe for hand gesture detection.
 
-Supported gestures:
-- Rock (defense): All fingers closed, palm visible
-- Thumbs Up (fireballs): Thumb extended, other fingers closed
-- Fist (normal attack): Closed fist
+Supported gestures (right hand only):
+- Rock (defense): Closed fist with thumb tucked in
+- Thumbs Up (fireballs): Thumb extended upward, other fingers closed
+- Fist (power strike): Closed fist with thumb wrapped around fingers
 """
 
 import argparse
@@ -59,22 +59,54 @@ def is_finger_extended(hand_landmarks, finger_tip_id, finger_pip_id):
 
 
 def is_thumb_extended(hand_landmarks, handedness):
-    """Check if thumb is extended based on handedness."""
+    """
+    Check if thumb is extended based on handedness.
+    After cv.flip(), the image is mirrored, so we need to account for that.
+    MediaPipe labels hands based on the original (pre-flip) orientation.
+    """
     thumb_tip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_TIP]
     thumb_ip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_IP]
     thumb_mcp = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_MCP]
     
-    # For thumb, check horizontal extension based on handedness
-    if handedness == "Right":
-        return thumb_tip.x < thumb_ip.x  # Right hand thumb extends left
-    else:
-        return thumb_tip.x > thumb_ip.x  # Left hand thumb extends right
+    # Calculate the horizontal distance between thumb tip and MCP
+    # A thumb is extended if the tip is significantly away from the palm center
+    thumb_extension = abs(thumb_tip.x - thumb_mcp.x)
+    
+    # Also check vertical extension for thumbs up gesture
+    thumb_up = thumb_tip.y < thumb_ip.y - 0.05  # Thumb pointing upward
+    
+    # Thumb is extended if there's significant horizontal extension OR pointing up
+    return thumb_extension > 0.08 or thumb_up
+
+
+def is_thumb_up(hand_landmarks):
+    """Check if thumb is specifically pointing upward (for thumbs up gesture)."""
+    thumb_tip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_TIP]
+    thumb_ip = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_IP]
+    thumb_mcp = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.THUMB_MCP]
+    
+    # Thumb is pointing up if tip is significantly higher (lower y) than the MCP
+    vertical_extension = thumb_mcp.y - thumb_tip.y
+    return vertical_extension > 0.1
 
 
 def detect_gesture(hand_landmarks, handedness):
     """
     Detect hand gesture from landmarks.
     Returns gesture ID and name.
+    
+    Gestures (right hand only for spell casting):
+    - Thumbs Up: Thumb pointing upward, other fingers closed -> Fireballs
+    - Fist: All fingers closed including thumb wrapped around -> Power Strike
+    - Rock: Similar to fist but used when holding position -> Defense
+    
+    To differentiate Fist and Rock:
+    - Rock: Detected when hand is relatively stationary (defensive stance)
+    - Fist: Detected as the default closed hand gesture
+    
+    Since we can't easily detect motion, we use thumb position:
+    - Thumb tucked in tightly (Rock/Defense)
+    - Thumb wrapped around fingers loosely (Fist/Power Strike)
     """
     mp_hands = mp.solutions.hands
     
@@ -100,24 +132,25 @@ def detect_gesture(hand_landmarks, handedness):
         mp_hands.HandLandmark.PINKY_PIP
     )
     thumb_extended = is_thumb_extended(hand_landmarks, handedness)
+    thumb_up = is_thumb_up(hand_landmarks)
     
-    # Count extended fingers (excluding thumb for now)
+    # Count extended fingers (excluding thumb)
     fingers_extended = sum([index_extended, middle_extended, ring_extended, pinky_extended])
     
     # Gesture classification for right hand (spell casting hand)
     if handedness == "Right":
-        # Thumbs Up: Only thumb extended
-        if thumb_extended and fingers_extended == 0:
+        # Thumbs Up: Thumb pointing upward, other fingers closed
+        if thumb_up and fingers_extended == 0:
             return GESTURE_THUMBS_UP, "Thumbs Up"
         
-        # Fist: No fingers extended (including thumb)
-        if not thumb_extended and fingers_extended == 0:
-            return GESTURE_FIST, "Fist"
-        
-        # Rock: Closed hand with palm visible (similar to fist but can include thumb)
-        # Rock is essentially same as fist for detection purposes
+        # Check for closed fist variations
         if fingers_extended == 0:
-            return GESTURE_ROCK, "Rock"
+            # Fist with thumb extended outward (Power Strike - offensive)
+            if thumb_extended:
+                return GESTURE_FIST, "Fist"
+            # Fist with thumb tucked in (Rock - defensive)
+            else:
+                return GESTURE_ROCK, "Rock"
     
     return GESTURE_NONE, "None"
 
@@ -151,7 +184,7 @@ def main():
     )
     
     print("[CyberTaoist] MediaPipe Hand Detection Started")
-    print("Gestures: Rock (Defense), Thumbs Up (Fireballs), Fist (Normal Attack)")
+    print("Gestures: Rock (Defense), Thumbs Up (Fireballs), Fist (Power Strike)")
     print("Use left hand index finger for player movement")
     print("Use right hand for spell casting")
     print("Press ESC to exit")

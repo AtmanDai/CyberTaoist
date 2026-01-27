@@ -107,9 +107,9 @@ public class SealSlotManager : MonoBehaviour
     {
         switch (spellType)
         {
-            case SpellType.Rock: return "岩守 (Defense)";
+            case SpellType.Rock: return "岩守 (Rock Defense)";
             case SpellType.ThumbsUp: return "焰弹 (Fireball)";
-            case SpellType.Fist: return "拳击 (Attack)";
+            case SpellType.Fist: return "拳击 (Power Strike)";
             default: return "";
         }
     }
@@ -128,11 +128,28 @@ public class SealSlotManager : MonoBehaviour
         }
     }
 
-    // Legacy methods for backward compatibility
-    public void TriggerSpellRelease() { }
-    public void ClearSlots() { }
+    // Legacy methods for backward compatibility (deprecated)
+    [System.Obsolete("TriggerSpellRelease is deprecated. Spells are now cast immediately via TryAddSealBySignID.")]
+    public void TriggerSpellRelease() 
+    { 
+        Debug.LogWarning("[SealSlotManager] TriggerSpellRelease is deprecated. Use TryAddSealBySignID for immediate spell casting.");
+    }
+    
+    [System.Obsolete("ClearSlots is deprecated. Seal slots are no longer used.")]
+    public void ClearSlots() 
+    { 
+        Debug.LogWarning("[SealSlotManager] ClearSlots is deprecated. Seal slots are no longer used.");
+    }
+    
+    [System.Obsolete("GetFilledSlotCount is deprecated. Seal slots are no longer used.")]
     public int GetFilledSlotCount() { return 0; }
+    
+    [System.Obsolete("GetSealAt is deprecated. Seal slots are no longer used.")]
     public SealType GetSealAt(int index) { return SealType.None; }
+    
+    [System.Obsolete("GetSealChineseName is deprecated. Use GetSpellChineseName instead.")]
     public static string GetSealChineseName(SealType sealType) { return ""; }
+    
+    [System.Obsolete("GetSealColor is deprecated. Use GetSpellColor instead.")]
     public static Color GetSealColor(SealType sealType) { return Color.gray; }
 }
